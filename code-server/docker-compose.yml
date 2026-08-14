@@ -1,0 +1,31 @@
+services:
+
+  code-server:
+    image: lscr.io/linuxserver/code-server:latest
+    container_name: code-server
+
+    restart: unless-stopped
+
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+      - PASSWORD=12345
+      # - HASHED_PASSWORD= # Optional: Use instead of PASSWORD for better security
+      - SUDO_PASSWORD=12345
+
+    volumes:
+      - ./config:/config          # Stores user settings, plugins, and configurations
+      - ./workspace:/workspace    # This is your primary coding folder
+      - /opt/docker:/home/coder/other-apps
+
+    ports:
+      - 18443:8443
+
+    networks:
+      - proxy-network
+
+networks:
+  proxy-network:
+    external: true
+

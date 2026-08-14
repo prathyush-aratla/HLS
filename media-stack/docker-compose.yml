@@ -1,0 +1,166 @@
+networks:
+  proxy-network:
+    external: true
+
+services:
+  # Prowlarr - Indexer Manager
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=986
+      - TZ=Asia/Kolkata
+    volumes:
+      - /opt/docker/media-stack/config/prowlarr:/config
+    ports:
+      - 9696:9696
+    networks:
+      - proxy-network
+
+    restart: unless-stopped
+
+  # Radarr - Movies
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+    volumes:
+      - /opt/docker/media-stack/config/radarr:/config
+      - /mnt/media-drive/data:/data
+    ports:
+      - 7878:7878
+    networks:
+      - proxy-network
+    restart: unless-stopped
+
+  # Sonarr - TV Shows
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+    volumes:
+      - /opt/docker/media-stack/config/sonarr:/config
+      - /mnt/media-drive/data:/data
+    ports:
+      - 8989:8989
+    networks:
+      - proxy-network
+    restart: unless-stopped
+
+  # qBittorrent - Download Client
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+      - WEBUI_PORT=8080
+    volumes:
+      - /opt/docker/media-stack/config/qbittorrent:/config
+      - /mnt/media-drive/data:/data
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    networks:
+      - proxy-network
+    restart: unless-stopped
+
+  # Jellyfin - Media Streaming Server
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Kolkata
+    volumes:
+      - /opt/docker/media-stack/config/jellyfin:/config
+      - /mnt/media-drive/data:/data  # Points directly to your movie and tv folders
+    ports:
+      - 8096:8096
+    networks:
+      - proxy-network
+    restart: unless-stopped
+
+  # Gluetun - Proxy server for bypass blockades
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8888:8888 # HTTP proxy port
+      - 8191:8191 # flaresoverr proxt port
+    networks:
+      - proxy-network
+    environment:
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=openvpn
+      # Use your OpenVPN Username from ProtonVPN Account Settings
+      - OPENVPN_USER=PKAlmjEgkSd4XhQpBY7jXmSgYQv8wT9O
+      - OPENVPN_PASSWORD=DERksim1mUgPgQRFkjCyxAP3a9CA7lTl
+      # Free tier restrictions require picking free server targets
+      - FREE_ONLY=on
+      - HTTPPROXY=on
+      - HTTPPROXY_LISTENING_ADDRESS=:8888
+
+      # Allow connections to FlareSolverr through Gluetun
+      - FIREWALL_INPUT_PORTS=8191
+
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    network_mode: "service:gluetun"
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=Asia/Kolkata
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    container_name: seerr
+    init: true
+    environment:
+      - LOG_LEVEL=info
+      - TZ=Asia/Kolkata
+      - PORT=5055
+    volumes:
+      - /opt/docker/media-stack/config/seerr:/app/config
+    ports:
+      - 5055:5055
+    networks:
+      - proxy-network
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/settings/public || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
+      retries: 3
+    restart: unless-stopped
+
+
+  webserver:
+    image: httpd:alpine
+    container_name: webserver
+    ports:
+      - "8090:80"
+    volumes:
+      - /mnt/media-drive/data:/usr/local/apache2/htdocs/:ro
+    restart: unless-stopped

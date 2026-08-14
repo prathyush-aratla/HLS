@@ -1,0 +1,12 @@
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token eyJhIjoiNzNkMzQ5MmFiZTYyZDBhZGU2YzIzNGNhODQxNzExMjkiLCJ0IjoiYjZiMzMyYmMtYzkyZi00ZDIzLWIwNTItY2NlODNjNGExMjRlIiwicyI6Ik1HTXlPV0ZsWldVdE4yUmtPUzAwTlRJNUxXRmpNRFl0TXpVd016Tm1OR05qT1RrMyJ9
+    networks:
+      - proxy-network
+
+networks:
+  proxy-network:
+    external: true
